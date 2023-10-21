@@ -9,8 +9,11 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
 
+type Quiz struct {
+}
 type quizEntry struct {
 	question string
 	answer   string
@@ -19,8 +22,6 @@ type quizEntry struct {
 type score int
 
 func main() {
-
-	score := 0
 
 	filename := flag.String("filename", "problems.csv", "input problems file")
 
@@ -39,7 +40,24 @@ func main() {
 		panic(err)
 	}
 
+	c := make(chan bool)
+	t := make(chan bool)
+
+	go doQuiz(records, c)
+	go timer(t)
+
+	select {
+	case <-c:
+	case <-t:
+		fmt.Println("Tempo scaduto!")
+	}
+}
+
+func doQuiz(records [][]string, c chan bool) {
+
+	var score score
 	var quiz = make([]quizEntry, len(records))
+
 	for i := range records {
 		quiz[i].question = records[i][0]
 		quiz[i].answer = records[i][1]
@@ -51,7 +69,7 @@ func main() {
 		reader := bufio.NewReader(os.Stdin)
 		s, err := reader.ReadString('\n')
 		if err != nil {
-			return
+			c <- false
 		}
 
 		if quiz[i].answer == strings.Trim(strings.TrimRight(s, "\r\n"), " ") {
@@ -59,6 +77,12 @@ func main() {
 		}
 	}
 
-	fmt.Printf("Hai risposto correttamente a %v domande su %v", score, nq)
+	fmt.Printf("Hai risposto correttamente a %v domanda/e su %v", score, nq)
+	c <- true
+}
 
+func timer(t chan bool) {
+	timer := time.NewTimer(5 * time.Second)
+	<-timer.C
+	t <- true
 }
