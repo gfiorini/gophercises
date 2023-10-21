@@ -6,23 +6,56 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
 )
 
-type Quiz struct {
-}
-type quizEntry struct {
+type Score int
+
+type QuizEntry struct {
 	question string
 	answer   string
 }
 
-type score int
+type Quiz struct {
+	score   Score
+	entries []QuizEntry
+}
+
+func NewQuiz(records [][]string) *Quiz {
+
+	q := Quiz{
+		entries: make([]QuizEntry, len(records)),
+	}
+	for i := range records {
+		q.entries[i].question = records[i][0]
+		q.entries[i].answer = records[i][1]
+	}
+	return &q
+}
 
 func main() {
 
+	records := readCSV()
+	q := NewQuiz(records)
+
+	c := make(chan bool)
+	t := make(chan bool)
+
+	go doQuiz(q, c)
+	go timer(t)
+
+	select {
+	case <-c:
+	case <-t:
+		fmt.Println("Tempo scaduto!")
+	}
+
+	fmt.Printf("Hai risposto correttamente a %v domanda/e su %v\n", q.score, len(q.entries))
+}
+
+func readCSV() [][]string {
 	filename := flag.String("filename", "problems.csv", "input problems file")
 
 	b, err := os.ReadFile(*filename)
@@ -31,7 +64,6 @@ func main() {
 		panic(s)
 	}
 
-	log.Printf("Parsing file %v\n", *filename)
 	r := csv.NewReader(bytes.NewReader(b))
 	r.FieldsPerRecord = 2
 
@@ -39,50 +71,29 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	c := make(chan bool)
-	t := make(chan bool)
-
-	go doQuiz(records, c)
-	go timer(t)
-
-	select {
-	case <-c:
-	case <-t:
-		fmt.Println("Tempo scaduto!")
-	}
+	return records
 }
 
-func doQuiz(records [][]string, c chan bool) {
+func doQuiz(q *Quiz, c chan bool) {
 
-	var score score
-	var quiz = make([]quizEntry, len(records))
-
-	for i := range records {
-		quiz[i].question = records[i][0]
-		quiz[i].answer = records[i][1]
-	}
-
-	nq := len(quiz)
-	for i := range quiz {
-		fmt.Printf("Quiz %v/%v) - %v ?\n ", i+1, nq, quiz[i].question)
+	nq := len(q.entries)
+	for i := range q.entries {
+		fmt.Printf("Quiz %v/%v) - %v ?\n ", i+1, nq, q.entries[i].question)
 		reader := bufio.NewReader(os.Stdin)
 		s, err := reader.ReadString('\n')
 		if err != nil {
 			c <- false
 		}
 
-		if quiz[i].answer == strings.Trim(strings.TrimRight(s, "\r\n"), " ") {
-			score++
+		if q.entries[i].answer == strings.Trim(strings.TrimRight(s, "\r\n"), " ") {
+			q.score++
 		}
 	}
-
-	fmt.Printf("Hai risposto correttamente a %v domanda/e su %v", score, nq)
 	c <- true
 }
 
 func timer(t chan bool) {
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(3 * time.Second)
 	<-timer.C
 	t <- true
 }
