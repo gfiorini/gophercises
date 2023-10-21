@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ type Quiz struct {
 	entries []QuizEntry
 }
 
-func NewQuiz(records [][]string, timer time.Duration) *Quiz {
+func NewQuiz(records [][]string, timer time.Duration, shuffle bool) *Quiz {
 
 	q := Quiz{
 		entries: make([]QuizEntry, len(records)),
@@ -35,6 +36,12 @@ func NewQuiz(records [][]string, timer time.Duration) *Quiz {
 		q.entries[i].answer = records[i][1]
 	}
 
+	if shuffle {
+		rand.Shuffle(len(q.entries), func(i, j int) {
+			q.entries[i], q.entries[j] = q.entries[j], q.entries[i]
+		})
+	}
+
 	return &q
 }
 
@@ -42,12 +49,13 @@ func main() {
 
 	filename := flag.String("filename", "problems.csv", "input problems file")
 	qt := flag.Int("timer", 30, "Quiz timer")
+	shuffle := flag.Bool("shuffle", true, "Shuffle questions")
 
 	flag.Parse()
 
 	records := readCSV(filename)
 
-	q := NewQuiz(records, time.Duration(*qt)*time.Second)
+	q := NewQuiz(records, time.Duration(*qt)*time.Second, *shuffle)
 
 	c := make(chan bool)
 	t := make(chan bool)
