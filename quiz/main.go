@@ -19,32 +19,40 @@ type QuizEntry struct {
 }
 
 type Quiz struct {
+	timer   time.Duration
 	score   Score
 	entries []QuizEntry
 }
 
-func NewQuiz(records [][]string) *Quiz {
+func NewQuiz(records [][]string, timer time.Duration) *Quiz {
 
 	q := Quiz{
 		entries: make([]QuizEntry, len(records)),
+		timer:   timer,
 	}
 	for i := range records {
 		q.entries[i].question = records[i][0]
 		q.entries[i].answer = records[i][1]
 	}
+
 	return &q
 }
 
 func main() {
 
-	records := readCSV()
-	q := NewQuiz(records)
+	filename := flag.String("filename", "problems.csv", "input problems file")
+	qt := flag.Int("timer", 30, "Quiz timer")
+
+	flag.Parse()
+
+	records := readCSV(filename)
+
+	q := NewQuiz(records, time.Duration(*qt)*time.Second)
 
 	c := make(chan bool)
 	t := make(chan bool)
 
-	go doQuiz(q, c)
-	go timer(t)
+	go doQuiz(q, c, t)
 
 	select {
 	case <-c:
@@ -53,10 +61,10 @@ func main() {
 	}
 
 	fmt.Printf("Hai risposto correttamente a %v domanda/e su %v\n", q.score, len(q.entries))
+
 }
 
-func readCSV() [][]string {
-	filename := flag.String("filename", "problems.csv", "input problems file")
+func readCSV(filename *string) [][]string {
 
 	b, err := os.ReadFile(*filename)
 	if err != nil {
@@ -74,7 +82,15 @@ func readCSV() [][]string {
 	return records
 }
 
-func doQuiz(q *Quiz, c chan bool) {
+func doQuiz(q *Quiz, c chan bool, t chan bool) {
+
+	fmt.Println("Premi un tasto per partire")
+	reader := bufio.NewReader(os.Stdin)
+	_, err := reader.ReadString('\n')
+	if err != nil {
+		c <- false
+	}
+	go timer(t, q.timer)
 
 	nq := len(q.entries)
 	for i := range q.entries {
@@ -92,8 +108,8 @@ func doQuiz(q *Quiz, c chan bool) {
 	c <- true
 }
 
-func timer(t chan bool) {
-	timer := time.NewTimer(3 * time.Second)
+func timer(tc chan bool, d time.Duration) {
+	timer := time.NewTimer(d)
 	<-timer.C
-	t <- true
+	tc <- true
 }
