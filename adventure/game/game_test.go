@@ -6,5 +6,5 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	game.ParseFile("../adventure.json")
+	game.NewAdventureFromFile("../adventure.json")
 }
